@@ -3,11 +3,18 @@
 Model assumptions (Phase 1):
 - Single echelon: one warehouse replenished by an unconstrained supplier.
 - Lost sales: demand not met from on-hand stock is lost, not backordered.
-- Daily demand is Poisson(demand_mean) plus Gaussian(0, demand_std) noise,
-  floored at zero — the noise term lets demand be overdispersed relative
-  to a pure Poisson process, which real demand usually is.
 - Lead time convention: an order placed on day t with lead time L arrives
   at the start of day t + L.
+
+Phase 2 adds:
+- A pluggable `DemandProcess` (default: the Phase 1 stationary Poisson model,
+  unchanged) so a seasonal/trending process can replace it without touching
+  the engine.
+- `initial_demand_history`: pre-twin historical demand the policy can
+  forecast from starting on day 0, and which anchors the absolute day
+  index so day-of-week features stay aligned across history + simulation.
+- A per-day call to `policy.refresh(...)`, letting a forecast-driven policy
+  periodically re-fit itself against demand observed so far.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
+from .demand import DemandProcess, StationaryPoissonProcess
 from .entities import Node, NodeType, Shipment
 from .policies import ReorderPolicy
 
@@ -41,7 +49,7 @@ class KPIs:
         lines = [
             f"{'Service level':<22} {self.service_level:>8.1%}",
             f"{'Fill rate':<22} {self.fill_rate:>8.1%}",
-            f"{'Stockout days':<22} {self.stockout_days:>8d}",
+            f"{'Stockout days':<22} {self.stockout_days:>8.1f}",
             f"{'Average inventory':<22} {self.average_inventory:>8.1f}",
             f"{'Holding cost':<22} {self.total_holding_cost:>8.2f}",
             f"{'Ordering cost':<22} {self.total_ordering_cost:>8.2f}",
@@ -79,7 +87,7 @@ class SimulationEngine:
     facing stochastic daily demand over a fixed horizon.
 
     Day order of operations: receive due shipments -> demand arrives and is
-    fulfilled from on-hand -> policy evaluated and a replenishment order
+    fulfilled from on-hand -> policy refreshed and a replenishment order
     placed if triggered -> costs and snapshot recorded.
     """
 
@@ -93,6 +101,8 @@ class SimulationEngine:
         demand_std: float = 5.0,
         holding_cost_per_unit: float = 0.5,
         seed: Optional[int] = None,
+        demand_process: Optional[DemandProcess] = None,
+        initial_demand_history: Optional[Sequence[float]] = None,
     ) -> None:
         if warehouse.node_type not in (NodeType.WAREHOUSE, NodeType.RETAIL):
             raise ValueError("warehouse must be a WAREHOUSE or RETAIL node")
@@ -105,23 +115,26 @@ class SimulationEngine:
         self.warehouse = warehouse
         self.policy = policy
         self.horizon = horizon
-        self.demand_mean = demand_mean
-        self.demand_std = demand_std
         self.holding_cost_per_unit = holding_cost_per_unit
         self.rng = np.random.default_rng(seed)
 
-        self.demand_history: list[float] = []
+        # Phase 1 behavior is preserved exactly when demand_process is
+        # omitted: same rng call sequence as the original inline formula.
+        self.demand_process: DemandProcess = demand_process or StationaryPoissonProcess(
+            mean=demand_mean, std=demand_std
+        )
+
+        seed_history = list(initial_demand_history) if initial_demand_history is not None else []
+        self.history_offset = len(seed_history)
+        self.demand_history: list[float] = seed_history
         self.fulfilled_history: list[float] = []
 
     @property
     def inventory_history(self) -> list[float]:
         return self.warehouse.inventory.history
 
-    def _generate_demand(self) -> float:
-        """Poisson baseline plus Gaussian noise, floored at zero."""
-        base = self.rng.poisson(self.demand_mean)
-        noise = self.rng.normal(0.0, self.demand_std) if self.demand_std > 0 else 0.0
-        return max(0.0, float(base + noise))
+    def _generate_demand(self, absolute_day: int) -> float:
+        return self.demand_process.sample(absolute_day, self.rng)
 
     def _receive_shipments(self) -> None:
         """Age pending shipments by one day; deliver those whose lead time elapsed."""
@@ -159,10 +172,11 @@ class SimulationEngine:
         total_holding_cost = 0.0
         total_ordering_cost = 0.0
 
-        for _day in range(self.horizon):
+        for step in range(self.horizon):
+            absolute_day = self.history_offset + step
             self._receive_shipments()
 
-            demand = self._generate_demand()
+            demand = self._generate_demand(absolute_day)
             fulfilled = min(demand, inv.on_hand)
             inv.on_hand -= fulfilled
             total_demand += demand
@@ -170,11 +184,12 @@ class SimulationEngine:
             if fulfilled < demand:
                 stockout_days += 1
 
+            self.demand_history.append(demand)
+            self.policy.refresh(self.demand_history, absolute_day)
             total_ordering_cost += self._place_order_if_needed()
             total_holding_cost += inv.on_hand * self.holding_cost_per_unit
 
             inv.snapshot()
-            self.demand_history.append(demand)
             self.fulfilled_history.append(fulfilled)
 
         average_inventory = mean(inv.history) if inv.history else 0.0
@@ -189,15 +204,12 @@ class SimulationEngine:
         )
 
 
-def run_replications(
-    make_engine,
-    seeds: Sequence[int],
-) -> ReplicatedKPIs:
+def run_replications(make_engine, seeds: Sequence[int]) -> ReplicatedKPIs:
     """Run the same scenario across independent seeds and aggregate KPIs.
 
-    `make_engine` is a zero-argument-except-seed factory: make_engine(seed) -> SimulationEngine.
-    A factory is required because engines and their nodes are stateful and
-    cannot be reused across runs.
+    `make_engine` is a factory taking one seed argument and returning a
+    fresh SimulationEngine — a factory is required because engines and their
+    nodes are stateful and cannot be reused across runs.
     """
     if len(seeds) < 2:
         raise ValueError("need at least 2 seeds for a std estimate")
