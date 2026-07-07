@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supply Chain Digital Twin — does forecasting beat guessing?</title>
+<meta name="description" content="A live inventory simulation comparing a historically-tuned reorder policy against one driven by real demand forecasts.">
+<style>
+  .viz-root {
+    --page-plane:     #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-static:    #2a78d6; /* categorical slot 1 (blue) */
+    --series-forecast:  #1baf7a; /* categorical slot 2 (aqua)  */
+    --status-good:    #0ca30c;
+    --status-critical:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      --page-plane:     #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-static:    #3987e5;
+      --series-forecast:  #199e70;
+      --status-good:    #0ca30c;
+      --status-critical:#e66767;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  a { color: var(--series-static); }
+
+  header.top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+  header.top .eyebrow { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+  header.top .links { font-size: 14px; color: var(--text-secondary); }
+  header.top .links a { margin-left: 14px; }
+
+  h1 { font-size: clamp(28px, 4vw, 40px); margin: 4px 0 8px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-secondary); font-size: 16px; max-width: 62ch; margin: 0 0 32px; }
+
+  .hero {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px 32px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+  .hero .stat .label { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .hero .stat .value { font-size: 34px; font-weight: 600; font-variant-numeric: proportional-nums; }
+  .hero .stat .delta { font-size: 14px; margin-top: 4px; font-weight: 600; }
+  .hero .stat .delta.good { color: var(--status-good); }
+  .hero .stat .delta.bad { color: var(--status-critical); }
+  .hero-note { grid-column: 1 / -1; font-size: 13.5px; color: var(--text-secondary); border-top: 1px solid var(--gridline); padding-top: 16px; margin-top: 4px; }
+
+  section { margin-bottom: 48px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 1px solid var(--gridline); padding-bottom: 10px; margin: 0 0 20px; }
+  .section-lede { color: var(--text-secondary); font-size: 14.5px; margin: -10px 0 20px; max-width: 68ch; }
+
+  .controls-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-group label { font-size: 13px; color: var(--text-secondary); }
+  .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .segmented button {
+    background: var(--surface-1); color: var(--text-secondary); border: none;
+    padding: 7px 14px; font-size: 13.5px; cursor: pointer; font-family: inherit;
+    border-right: 1px solid var(--border);
+  }
+  .segmented button:last-child { border-right: none; }
+  .segmented button.active { background: var(--series-static); color: white; }
+  .segmented button:hover:not(.active) { background: var(--gridline); }
+
+  .chart-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .chart-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px 12px;
+  }
+  .chart-card .chart-title { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-secondary); }
+  svg .value-label { font-size: 12px; font-weight: 600; fill: var(--text-primary); font-variant-numeric: tabular-nums; }
+  svg .axis-label { font-size: 11px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
+  svg .gridline { stroke: var(--gridline); stroke-width: 1; }
+  svg .baseline { stroke: var(--baseline); stroke-width: 1; }
+  .bar { transition: opacity 0.1s; cursor: pointer; }
+  .bar:hover { opacity: 0.82; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; background: var(--text-primary); color: var(--page-plane);
+    font-size: 12.5px; padding: 6px 10px; border-radius: 6px; transform: translate(-50%, -130%);
+    white-space: nowrap; opacity: 0; transition: opacity 0.08s; z-index: 10;
+  }
+  .tooltip strong { font-variant-numeric: tabular-nums; }
+  .chart-wrap { position: relative; }
+
+  .architecture-note {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px 24px; font-size: 14.5px; color: var(--text-secondary);
+  }
+  .architecture-note code {
+    background: var(--gridline); padding: 1px 6px; border-radius: 4px; font-size: 13px; color: var(--text-primary);
+  }
+  footer { font-size: 13px; color: var(--text-muted); border-top: 1px solid var(--gridline); padding-top: 20px; margin-top: 40px; }
+
+  @media (max-width: 760px) {
+    .hero, .chart-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="viz-root">
+<main>
+
+  <header class="top">
+    <span class="eyebrow">Supply Chain Digital Twin</span>
+    <span class="links">
+      <a href="https://github.com/taim-ss/digital-twin-supply-chain">Source code</a>
+      <a href="https://github.com/taim-ss/digital-twin-supply-chain#readme">Documentation</a>
+    </span>
+  </header>
+
+  <h1>Forecasting cut stockouts 76% — at a cost.</h1>
+  <p class="subtitle">
+    A warehouse inventory policy tuned from historical averages versus one driven by a live demand
+    forecast, running the identical trending, seasonal demand for a full simulated year.
+  </p>
+
+  <section class="hero">
+    <div class="stat">
+      <div class="label">Stockout days / year</div>
+      <div class="value" id="hero-stockout">—</div>
+      <div class="delta good" id="hero-stockout-delta"></div>
+    </div>
+    <div class="stat">
+      <div class="label">Service level</div>
+      <div class="value" id="hero-service">—</div>
+      <div class="delta good" id="hero-service-delta"></div>
+    </div>
+    <div class="stat">
+      <div class="label">Total cost / year</div>
+      <div class="value" id="hero-cost">—</div>
+      <div class="delta bad" id="hero-cost-delta"></div>
+    </div>
+    <div class="hero-note">
+      The forecast-driven policy re-forecasts demand every 7 days and re-sizes its reorder point to match —
+      the static policy is set once from 180 days of history and never updates. As real demand grows past
+      that stale average, the static policy quietly under-stocks. That's the whole story: not "AI wins
+      outright," but a genuine service-vs-cost tradeoff, caused by one policy tracking a trend the other can't see.
+    </div>
+  </section>
+
+  <section id="explorer">
+    <h2>Explore the tradeoff</h2>
+    <p class="section-lede">
+      Stockout cost isn't modeled here — only holding and ordering cost — so whether the tradeoff is
+      worth it depends on your real stockout cost. Longer lead times are where forecasting earns its keep most.
+    </p>
+    <div class="controls-row">
+      <div class="control-group">
+        <label>Supplier lead time</label>
+        <div class="segmented" id="lead-time-control"></div>
+      </div>
+      <div class="control-group">
+        <label>Target service level</label>
+        <div class="segmented" id="service-level-control"></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span class="key"><span class="swatch" style="background:var(--series-static)"></span>Static (Phase 1)</span>
+      <span class="key"><span class="swatch" style="background:var(--series-forecast)"></span>Forecast-driven (Phase 2)</span>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-title">Stockout days / year</div>
+        <div class="chart-wrap"><svg id="chart-stockout" viewBox="0 0 300 200"></svg></div></div>
+      <div class="chart-card"><div class="chart-title">Service level</div>
+        <div class="chart-wrap"><svg id="chart-service" viewBox="0 0 300 200"></svg></div></div>
+      <div class="chart-card"><div class="chart-title">Total cost / year</div>
+        <div class="chart-wrap"><svg id="chart-cost" viewBox="0 0 300 200"></svg></div></div>
+    </div>
+  </section>
+
+  <section id="forecast-section">
+    <h2>How the winning forecaster actually performs</h2>
+    <p class="section-lede">
+      Held out the last 30 of 180 historical days, forecast without seeing them. Holt-Winters tracks the
+      weekly wave; it can't and doesn't pretend to predict one-off spikes like day 173.
+    </p>
+    <div class="chart-card">
+      <div class="legend">
+        <span class="key"><span class="swatch" style="background:var(--series-static)"></span>Actual</span>
+        <span class="key"><span class="swatch" style="background:var(--series-forecast)"></span>Forecast (Holt-Winters)</span>
+      </div>
+      <div class="chart-wrap"><svg id="chart-forecast" viewBox="0 0 900 280" preserveAspectRatio="none" style="width:100%;height:280px"></svg></div>
+    </div>
+  </section>
+
+  <section id="model-section">
+    <h2>Why Holt-Winters won</h2>
+    <p class="section-lede">
+      Four forecasters, backtested with 6-fold walk-forward validation (never just a single train/test split).
+      Naive and gradient boosting are legitimate contenders; Holt-Winters wins because the demand process
+      has the exact trend + weekly seasonality shape it's built to model directly.
+    </p>
+    <div class="chart-card">
+      <div class="chart-wrap"><svg id="chart-models" viewBox="0 0 700 220"></svg></div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <h2>What's actually running</h2>
+    <div class="architecture-note">
+      Every number on this page comes from the real simulation engine in this repository — nothing here
+      is a mockup. <code>ReorderPolicy</code> and <code>DemandProcess</code> are both small protocols, so the
+      forecast-driven policy and the seasonal demand model plug in without the engine knowing or caring which
+      kind it's running. Want to change the scenario yourself instead of picking from presets? The repo ships
+      an interactive Streamlit control panel — <code>streamlit run streamlit_app.py</code> — with live sliders
+      for lead time, service target, forecaster choice, and demand parameters, running the same engine
+      this page's data was generated from.
+    </div>
+  </section>
+
+  <footer>
+    Phase 1 (simulation core) and Phase 2 (forecasting) of an ongoing project.
+    Phase 3 (a routing optimizer that closes the loop back into the twin's state) is next.
+    <a href="https://github.com/taim-ss/digital-twin-supply-chain">View the code →</a>
+  </footer>
+
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const fmtPct = (x) => (x * 100).toFixed(1) + '%';
+const fmtInt = (x) => Math.round(x).toLocaleString();
+const fmtDays = (x) => (Number.isInteger(x) ? x.toFixed(0) : x.toFixed(1));
+
+const tooltip = document.getElementById('tooltip');
+function showTooltip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.opacity = '1';
+  tooltip.style.left = evt.pageX + 'px';
+  tooltip.style.top = evt.pageY + 'px';
+}
+function hideTooltip() { tooltip.style.opacity = '0'; }
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+// ---- grouped bar-pair chart (static vs forecast, single metric) ----
+function renderBarPair(svg, staticVal, forecastVal, opts) {
+  svg.innerHTML = '';
+  const W = 300, H = 200, padTop = 14, padBottom = 26, padSide = 8;
+  const plotH = H - padTop - padBottom;
+  const maxVal = Math.max(staticVal, forecastVal) * 1.18 || 1;
+  const barW = 64, gap = 28;
+  const groupW = barW * 2 + 6;
+  const startX = (W - groupW) / 2;
+
+  // gridlines (3 steps)
+  for (let i = 0; i <= 2; i++) {
+    const y = padTop + (plotH * i / 2);
+    svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: y, y2: y, class: 'gridline' }));
+  }
+  svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: padTop + plotH, y2: padTop + plotH, class: 'baseline' }));
+
+  const bars = [
+    { val: staticVal, color: 'var(--series-static)', label: 'Static', x: startX },
+    { val: forecastVal, color: 'var(--series-forecast)', label: 'Forecast-driven', x: startX + barW + 6 },
+  ];
+
+  bars.forEach((b) => {
+    const h = Math.max((b.val / maxVal) * plotH, 2);
+    const y = padTop + plotH - h;
+    const rect = el('rect', {
+      x: b.x, y: y, width: barW, height: h, rx: 6, ry: 6, fill: b.color, class: 'bar',
+    });
+    svg.appendChild(rect);
+    // square the bottom corners (rounded top only): overlay a small square patch
+    if (h > 8) {
+      svg.appendChild(el('rect', { x: b.x, y: y + h - 6, width: barW, height: 6, fill: b.color }));
+    }
+    const label = el('text', {
+      x: b.x + barW / 2, y: y - 6, 'text-anchor': 'middle', class: 'value-label',
+    });
+    label.textContent = opts.format(b.val);
+    svg.appendChild(label);
+
+    const catLabel = el('text', {
+      x: b.x + barW / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-label',
+    });
+    catLabel.textContent = b.label === 'Static' ? 'Static' : 'Forecast';
+    svg.appendChild(catLabel);
+
+    rect.addEventListener('pointermove', (evt) => showTooltip(evt, `<strong>${b.label}:</strong> ${opts.format(b.val)}`));
+    rect.addEventListener('pointerleave', hideTooltip);
+  });
+}
+
+// ---- line chart with crosshair tooltip (forecast vs actual) ----
+function renderLineChart(svg, days, actual, forecast) {
+  svg.innerHTML = '';
+  const W = 900, H = 280, padL = 44, padR = 16, padTop = 16, padBottom = 30;
+  const plotW = W - padL - padR, plotH = H - padTop - padBottom;
+  const minV = Math.min(...actual, ...forecast) * 0.9;
+  const maxV = Math.max(...actual, ...forecast) * 1.08;
+  const x = (i) => padL + (i / (days.length - 1)) * plotW;
+  const y = (v) => padTop + plotH - ((v - minV) / (maxV - minV)) * plotH;
+
+  for (let i = 0; i <= 4; i++) {
+    const gy = padTop + (plotH * i / 4);
+    svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: gy, y2: gy, class: 'gridline' }));
+    const val = maxV - (maxV - minV) * i / 4;
+    const t = el('text', { x: padL - 8, y: gy + 4, 'text-anchor': 'end', class: 'axis-label' });
+    t.textContent = Math.round(val);
+    svg.appendChild(t);
+  }
+
+  function pathFor(series) {
+    return series.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`).join(' ');
+  }
+  const actualPath = el('path', { d: pathFor(actual), fill: 'none', stroke: 'var(--series-static)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  const forecastPath = el('path', { d: pathFor(forecast), fill: 'none', stroke: 'var(--series-forecast)', 'stroke-width': 2, 'stroke-dasharray': '6 4', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  svg.appendChild(actualPath);
+  svg.appendChild(forecastPath);
+
+  // day-of-week axis ticks (every 5th day)
+  days.forEach((d, i) => {
+    if (i % 5 === 0) {
+      const t = el('text', { x: x(i), y: H - 8, 'text-anchor': 'middle', class: 'axis-label' });
+      t.textContent = 'day ' + d;
+      svg.appendChild(t);
+    }
+  });
+
+  const crosshair = el('line', { x1: 0, x2: 0, y1: padTop, y2: padTop + plotH, class: 'baseline', style: 'opacity:0' });
+  svg.appendChild(crosshair);
+  const hit = el('rect', { x: padL, y: padTop, width: plotW, height: plotH, fill: 'transparent' });
+  svg.appendChild(hit);
+
+  hit.addEventListener('pointermove', (evt) => {
+    const rect = svg.getBoundingClientRect();
+    const relX = ((evt.clientX - rect.left) / rect.width) * W;
+    let idx = Math.round(((relX - padL) / plotW) * (days.length - 1));
+    idx = Math.max(0, Math.min(days.length - 1, idx));
+    crosshair.setAttribute('x1', x(idx));
+    crosshair.setAttribute('x2', x(idx));
+    crosshair.style.opacity = '1';
+    showTooltip(evt, `Day ${days[idx]}<br><strong>Actual:</strong> ${actual[idx].toFixed(1)} &nbsp; <strong>Forecast:</strong> ${forecast[idx].toFixed(1)}`);
+  });
+  hit.addEventListener('pointerleave', () => { crosshair.style.opacity = '0'; hideTooltip(); });
+}
+
+// ---- model comparison bars (winner highlighted, others muted) ----
+function renderModelChart(svg, results, winner) {
+  svg.innerHTML = '';
+  const W = 700, H = 220, padTop = 16, padBottom = 34, padSide = 20;
+  const plotH = H - padTop - padBottom;
+  const maxVal = Math.max(...results.map(r => r.mae)) * 1.2;
+  const n = results.length;
+  const barW = 70, gap = (W - padSide * 2 - barW * n) / (n - 1);
+
+  for (let i = 0; i <= 2; i++) {
+    const gy = padTop + (plotH * i / 2);
+    svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: gy, y2: gy, class: 'gridline' }));
+  }
+  svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: padTop + plotH, y2: padTop + plotH, class: 'baseline' }));
+
+  results.forEach((r, i) => {
+    const bx = padSide + i * (barW + gap);
+    const h = Math.max((r.mae / maxVal) * plotH, 2);
+    const by = padTop + plotH - h;
+    const color = r.name === winner ? 'var(--series-forecast)' : 'var(--text-muted)';
+    const rect = el('rect', { x: bx, y: by, width: barW, height: h, rx: 6, ry: 6, fill: color, class: 'bar' });
+    svg.appendChild(rect);
+    if (h > 8) svg.appendChild(el('rect', { x: bx, y: by + h - 6, width: barW, height: 6, fill: color }));
+
+    const label = el('text', { x: bx + barW / 2, y: by - 6, 'text-anchor': 'middle', class: 'value-label' });
+    label.textContent = r.mae.toFixed(2);
+    svg.appendChild(label);
+
+    const name = el('text', { x: bx + barW / 2, y: H - 12, 'text-anchor': 'middle', class: 'axis-label' });
+    name.textContent = r.name.replace('_', ' ');
+    svg.appendChild(name);
+
+    rect.addEventListener('pointermove', (evt) => showTooltip(evt,
+      `<strong>${r.name}</strong><br>MAE ${r.mae.toFixed(2)} · RMSE ${r.rmse.toFixed(2)} · MAPE ${r.mape.toFixed(1)}%`));
+    rect.addEventListener('pointerleave', hideTooltip);
+  });
+
+  const ylabel = el('text', { x: padSide, y: padTop - 4, class: 'axis-label' });
+  ylabel.textContent = 'MAE (units/day, lower is better)';
+  svg.appendChild(ylabel);
+}
+
+// ---- boot ----
+fetch('data.json').then(r => r.json()).then((data) => {
+  const h = data.headline;
+  document.getElementById('hero-stockout').textContent = fmtDays(h.forecast.stockout_days);
+  document.getElementById('hero-stockout-delta').textContent =
+    `${fmtDays(h.forecast.stockout_days - h.static.stockout_days)} vs ${fmtDays(h.static.stockout_days)} static`;
+  document.getElementById('hero-service').textContent = fmtPct(h.forecast.service_level);
+  document.getElementById('hero-service-delta').textContent =
+    `+${((h.forecast.service_level - h.static.service_level) * 100).toFixed(1)} pts vs ${fmtPct(h.static.service_level)} static`;
+  document.getElementById('hero-cost').textContent = fmtInt(h.forecast.total_cost);
+  const costPct = ((h.forecast.total_cost - h.static.total_cost) / h.static.total_cost) * 100;
+  document.getElementById('hero-cost-delta').textContent = `+${costPct.toFixed(1)}% vs static`;
+
+  renderLineChart(document.getElementById('chart-forecast'), data.forecast_vs_actual.days, data.forecast_vs_actual.actual, data.forecast_vs_actual.forecast);
+  renderModelChart(document.getElementById('chart-models'), data.forecaster_comparison, data.winning_model);
+
+  let selectedLeadTime = data.lead_times[0];
+  let selectedService = data.service_levels[1] || data.service_levels[0];
+
+  function currentScenario() {
+    return data.scenario_matrix.find(
+      (row) => row.lead_time === selectedLeadTime && row.service_level_label === selectedService
+    );
+  }
+
+  function updateExplorer() {
+    const row = currentScenario();
+    if (!row) return;
+    renderBarPair(document.getElementById('chart-stockout'), row.static.stockout_days, row.forecast.stockout_days, { format: fmtDays });
+    renderBarPair(document.getElementById('chart-service'), row.static.service_level, row.forecast.service_level, { format: fmtPct });
+    renderBarPair(document.getElementById('chart-cost'), row.static.total_cost, row.forecast.total_cost, { format: fmtInt });
+  }
+
+  function buildSegmented(containerId, options, selectedGetter, selectedSetter, formatLabel) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    options.forEach((opt) => {
+      const btn = document.createElement('button');
+      btn.textContent = formatLabel(opt);
+      if (opt === selectedGetter()) btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        selectedSetter(opt);
+        [...container.children].forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        updateExplorer();
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  buildSegmented('lead-time-control', data.lead_times, () => selectedLeadTime, (v) => { selectedLeadTime = v; }, (v) => v + ' days');
+  buildSegmented('service-level-control', data.service_levels, () => selectedService, (v) => { selectedService = v; }, (v) => v);
+
+  updateExplorer();
+}).catch((err) => {
+  document.querySelector('main').insertAdjacentHTML('afterbegin',
+    '<p style="color:var(--status-critical)">Could not load data.json — ' + err + '</p>');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+{
+  "headline": {
+    "lead_time": 3,
+    "service_level_label": "95%",
+    "replications": 20,
+    "horizon_days": 365,
+    "static": {
+      "service_level": 0.979,
+      "stockout_days": 7.5,
+      "total_cost": 35209
+    },
+    "forecast": {
+      "service_level": 0.995,
+      "stockout_days": 1.8,
+      "total_cost": 41162
+    }
+  },
+  "forecaster_comparison": [
+    {
+      "name": "naive",
+      "mae": 7.42,
+      "rmse": 9.35,
+      "mape": 17.2
+    },
+    {
+      "name": "seasonal_naive",
+      "mae": 9.56,
+      "rmse": 12.03,
+      "mape": 21.9
+    },
+    {
+      "name": "holt_winters",
+      "mae": 6.44,
+      "rmse": 8.15,
+      "mape": 14.5
+    },
+    {
+      "name": "gradient_boosting",
+      "mae": 8.15,
+      "rmse": 10.66,
+      "mape": 19.3
+    }
+  ],
+  "winning_model": "holt_winters",
+  "forecast_vs_actual": {
+    "days": [
+      150,
+      151,
+      152,
+      153,
+      154,
+      155,
+      156,
+      157,
+      158,
+      159,
+      160,
+      161,
+      162,
+      163,
+      164,
+      165,
+      166,
+      167,
+      168,
+      169,
+      170,
+      171,
+      172,
+      173,
+      174,
+      175,
+      176,
+      177,
+      178,
+      179
+    ],
+    "actual": [
+      34.4,
+      50.4,
+      60.3,
+      37.7,
+      45.8,
+      44.3,
+      41.1,
+      42.2,
+      48.2,
+      64.8,
+      49.1,
+      51.2,
+      47.8,
+      43.8,
+      39.5,
+      45.7,
+      59.1,
+      50.1,
+      57.4,
+      47.8,
+      45.4,
+      37.6,
+      64.5,
+      82.6,
+      29.2,
+      43.2,
+      36.8,
+      37.0,
+      45.7,
+      47.6
+    ],
+    "forecast": [
+      47.1,
+      51.5,
+      55.5,
+      42.6,
+      51.0,
+      47.1,
+      45.8,
+      47.4,
+      51.8,
+      55.8,
+      42.9,
+      51.3,
+      47.4,
+      46.1,
+      47.7,
+      52.1,
+      56.1,
+      43.2,
+      51.6,
+      47.7,
+      46.4,
+      48.0,
+      52.4,
+      56.4,
+      43.5,
+      51.9,
+      48.0,
+      46.7,
+      48.3,
+      52.7
+    ]
+  },
+  "scenario_matrix": [
+    {
+      "lead_time": 3,
+      "service_level_label": "90%",
+      "static": {
+        "service_level": 0.9833,
+        "stockout_days": 3,
+        "total_cost": 17373.0
+      },
+      "forecast": {
+        "service_level": 0.9933,
+        "stockout_days": 1.2,
+        "total_cost": 19315.0
+      }
+    },
+    {
+      "lead_time": 3,
+      "service_level_label": "95%",
+      "static": {
+        "service_level": 0.9889,
+        "stockout_days": 2,
+        "total_cost": 17870.0
+      },
+      "forecast": {
+        "service_level": 0.9944,
+        "stockout_days": 1,
+        "total_cost": 19766.0
+      }
+    },
+    {
+      "lead_time": 3,
+      "service_level_label": "99%",
+      "static": {
+        "service_level": 0.9922,
+        "stockout_days": 1.4,
+        "total_cost": 18783.0
+      },
+      "forecast": {
+        "service_level": 0.9956,
+        "stockout_days": 0.8,
+        "total_cost": 20597.0
+      }
+    },
+    {
+      "lead_time": 5,
+      "service_level_label": "90%",
+      "static": {
+        "service_level": 0.9778,
+        "stockout_days": 4,
+        "total_cost": 16863.0
+      },
+      "forecast": {
+        "service_level": 0.99,
+        "stockout_days": 1.8,
+        "total_cost": 18864.0
+      }
+    },
+    {
+      "lead_time": 5,
+      "service_level_label": "95%",
+      "static": {
+        "service_level": 0.9822,
+        "stockout_days": 3.2,
+        "total_cost": 17469.0
+      },
+      "forecast": {
+        "service_level": 0.9922,
+        "stockout_days": 1.4,
+        "total_cost": 19411.0
+      }
+    },
+    {
+      "lead_time": 5,
+      "service_level_label": "99%",
+      "static": {
+        "service_level": 0.9933,
+        "stockout_days": 1.2,
+        "total_cost": 18680.0
+      },
+      "forecast": {
+        "service_level": 0.9944,
+        "stockout_days": 1,
+        "total_cost": 20515.0
+      }
+    },
+    {
+      "lead_time": 7,
+      "service_level_label": "90%",
+      "static": {
+        "service_level": 0.9544,
+        "stockout_days": 8.2,
+        "total_cost": 16607.0
+      },
+      "forecast": {
+        "service_level": 0.9944,
+        "stockout_days": 1,
+        "total_cost": 21056.0
+      }
+    },
+    {
+      "lead_time": 7,
+      "service_level_label": "95%",
+      "static": {
+        "service_level": 0.9733,
+        "stockout_days": 4.8,
+        "total_cost": 17228.0
+      },
+      "forecast": {
+        "service_level": 0.9944,
+        "stockout_days": 1,
+        "total_cost": 21764.0
+      }
+    },
+    {
+      "lead_time": 7,
+      "service_level_label": "99%",
+      "static": {
+        "service_level": 0.99,
+        "stockout_days": 1.8,
+        "total_cost": 18540.0
+      },
+      "forecast": {
+        "service_level": 0.9956,
+        "stockout_days": 0.8,
+        "total_cost": 23087.0
+      }
+    }
+  ],
+  "lead_times": [
+    3,
+    5,
+    7
+  ],
+  "service_levels": [
+    "90%",
+    "95%",
+    "99%"
+  ]
+}
