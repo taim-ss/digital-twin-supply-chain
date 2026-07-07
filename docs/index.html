@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Supply Chain Digital Twin — does forecasting beat guessing?</title>
 <meta name="description" content="A live inventory simulation comparing a historically-tuned reorder policy against one driven by real demand forecasts.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%A6%3C/text%3E%3C/svg%3E">
 <style>
   .viz-root {
     --page-plane:     #f9f9f7;
@@ -86,7 +87,7 @@
     border-right: 1px solid var(--border);
   }
   .segmented button:last-child { border-right: none; }
-  .segmented button.active { background: var(--series-static); color: white; }
+  .segmented button.active { background: var(--text-primary); color: var(--page-plane); }
   .segmented button:hover:not(.active) { background: var(--gridline); }
 
   .chart-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -95,6 +96,18 @@
     padding: 16px 18px 12px;
   }
   .chart-card .chart-title { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .stat-pair { display: flex; flex-direction: column; justify-content: center; gap: 22px; height: 200px; padding: 0 8px; }
+  .stat-pair .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .stat-pair .who { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+  .stat-pair .who .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .stat-pair .num { font-size: 30px; font-weight: 600; }
+  .stat-pair .gap-note { font-size: 12.5px; color: var(--text-muted); border-top: 1px solid var(--gridline); padding-top: 12px; }
+  .methodology { font-size: 12.5px; color: var(--text-muted); margin-top: 14px; }
+  details.data-table { margin-top: 10px; font-size: 13px; color: var(--text-secondary); }
+  details.data-table summary { cursor: pointer; color: var(--series-static); }
+  details.data-table table { border-collapse: collapse; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  details.data-table th, details.data-table td { padding: 4px 14px 4px 0; text-align: right; border-bottom: 1px solid var(--gridline); }
+  details.data-table th { color: var(--text-muted); font-weight: 500; }
   .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
   .legend .key { display: inline-flex; align-items: center; gap: 6px; }
   .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
@@ -104,8 +117,12 @@
   svg .axis-label { font-size: 11px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
   svg .gridline { stroke: var(--gridline); stroke-width: 1; }
   svg .baseline { stroke: var(--baseline); stroke-width: 1; }
-  .bar { transition: opacity 0.1s; cursor: pointer; }
+  .bar { transition: opacity 0.1s, y 0.3s ease, height 0.3s ease; cursor: pointer; }
+  .bar-patch { transition: y 0.3s ease; }
   .bar:hover { opacity: 0.82; }
+  @media (prefers-reduced-motion: reduce) {
+    .bar, .bar-patch { transition: opacity 0.1s; }
+  }
 
   .tooltip {
     position: absolute; pointer-events: none; background: var(--text-primary); color: var(--page-plane);
@@ -140,7 +157,7 @@
     </span>
   </header>
 
-  <h1>Forecasting cut stockouts 76% — at a cost.</h1>
+  <h1>Forecasting cut stockouts <span id="hero-pct">80%</span> — for <span id="hero-cost-pct">16%</span> higher cost.</h1>
   <p class="subtitle">
     A warehouse inventory policy tuned from historical averages versus one driven by a live demand
     forecast, running the identical trending, seasonal demand for a full simulated year.
@@ -173,8 +190,8 @@
   <section id="explorer">
     <h2>Explore the tradeoff</h2>
     <p class="section-lede">
-      Stockout cost isn't modeled here — only holding and ordering cost — so whether the tradeoff is
-      worth it depends on your real stockout cost. Longer lead times are where forecasting earns its keep most.
+      Compare both policies across supplier lead times and service-level targets.
+      Longer lead times are where forecasting earns its keep.
     </p>
     <div class="controls-row">
       <div class="control-group">
@@ -194,10 +211,11 @@
       <div class="chart-card"><div class="chart-title">Stockout days / year</div>
         <div class="chart-wrap"><svg id="chart-stockout" viewBox="0 0 300 200"></svg></div></div>
       <div class="chart-card"><div class="chart-title">Service level</div>
-        <div class="chart-wrap"><svg id="chart-service" viewBox="0 0 300 200"></svg></div></div>
+        <div class="stat-pair" id="stat-service"></div></div>
       <div class="chart-card"><div class="chart-title">Total cost / year</div>
         <div class="chart-wrap"><svg id="chart-cost" viewBox="0 0 300 200"></svg></div></div>
     </div>
+    <p class="methodology" id="methodology-note"></p>
   </section>
 
   <section id="forecast-section">
@@ -212,6 +230,9 @@
         <span class="key"><span class="swatch" style="background:var(--series-forecast)"></span>Forecast (Holt-Winters)</span>
       </div>
       <div class="chart-wrap"><svg id="chart-forecast" viewBox="0 0 900 280" preserveAspectRatio="none" style="width:100%;height:280px"></svg></div>
+      <details class="data-table"><summary>View the data as a table</summary>
+        <table id="forecast-table"></table>
+      </details>
     </div>
   </section>
 
@@ -229,21 +250,42 @@
 
   <section id="architecture">
     <h2>What's actually running</h2>
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="chart-title">The twin's network</div>
+      <svg viewBox="0 0 760 130" style="width:100%;max-width:760px;display:block" role="img" aria-label="Topology: supplier ships to warehouse after a lead time; warehouse serves daily customer demand; a forecast re-sizes the reorder policy weekly">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-muted)"/>
+          </marker>
+        </defs>
+        <!-- forecast loop -->
+        <path d="M 380 88 C 380 118, 250 118, 250 96" fill="none" stroke="var(--series-forecast)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+        <text x="318" y="124" text-anchor="middle" style="font-size:11px" fill="var(--series-forecast)">forecast re-sizes the reorder policy weekly</text>
+        <!-- nodes -->
+        <rect x="30" y="34" width="130" height="44" rx="8" fill="var(--page-plane)" stroke="var(--baseline)" stroke-width="1.5"/>
+        <text x="95" y="60" text-anchor="middle" style="font-size:13px" fill="var(--text-primary)">Supplier</text>
+        <rect x="290" y="34" width="180" height="44" rx="8" fill="var(--page-plane)" stroke="var(--series-static)" stroke-width="2"/>
+        <text x="380" y="54" text-anchor="middle" style="font-size:13px" fill="var(--text-primary)">Central Warehouse</text>
+        <text x="380" y="70" text-anchor="middle" style="font-size:10.5px" fill="var(--text-muted)">(s, S) reorder policy</text>
+        <rect x="600" y="34" width="130" height="44" rx="8" fill="var(--page-plane)" stroke="var(--baseline)" stroke-width="1.5"/>
+        <text x="665" y="60" text-anchor="middle" style="font-size:13px" fill="var(--text-primary)">Customers</text>
+        <!-- flows -->
+        <line x1="160" y1="56" x2="283" y2="56" stroke="var(--text-muted)" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="221" y="46" text-anchor="middle" style="font-size:11px" fill="var(--text-muted)">ships after lead time</text>
+        <line x1="470" y1="56" x2="593" y2="56" stroke="var(--text-muted)" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="531" y="46" text-anchor="middle" style="font-size:11px" fill="var(--text-muted)">daily seasonal demand</text>
+      </svg>
+    </div>
     <div class="architecture-note">
-      Every number on this page comes from the real simulation engine in this repository — nothing here
-      is a mockup. <code>ReorderPolicy</code> and <code>DemandProcess</code> are both small protocols, so the
-      forecast-driven policy and the seasonal demand model plug in without the engine knowing or caring which
-      kind it's running. Want to change the scenario yourself instead of picking from presets? The repo ships
-      an interactive Streamlit control panel — <code>streamlit run streamlit_app.py</code> — with live sliders
-      for lead time, service target, forecaster choice, and demand parameters, running the same engine
-      this page's data was generated from.
+      Every number on this page comes from a verified discrete-event simulation engine — 41 passing tests,
+      paired-seed replications, walk-forward-validated forecasts. Nothing is mocked, and this page itself is
+      pure static HTML with zero dependencies. The full engine, including a control panel that runs arbitrary
+      scenarios live, is in <a href="https://github.com/taim-ss/digital-twin-supply-chain">the repository</a>.
     </div>
   </section>
 
   <footer>
-    Phase 1 (simulation core) and Phase 2 (forecasting) of an ongoing project.
-    Phase 3 (a routing optimizer that closes the loop back into the twin's state) is next.
-    <a href="https://github.com/taim-ss/digital-twin-supply-chain">View the code →</a>
+    MIT license · <a href="https://github.com/taim-ss/digital-twin-supply-chain">Source on GitHub</a>
   </footer>
 
 </main>
@@ -272,52 +314,48 @@ function el(tag, attrs) {
 }
 
 // ---- grouped bar-pair chart (static vs forecast, single metric) ----
+// Builds its skeleton once per svg, then updates geometry in place so the
+// CSS y/height transitions animate when the scenario changes.
 function renderBarPair(svg, staticVal, forecastVal, opts) {
-  svg.innerHTML = '';
   const W = 300, H = 200, padTop = 14, padBottom = 26, padSide = 8;
   const plotH = H - padTop - padBottom;
   const maxVal = Math.max(staticVal, forecastVal) * 1.18 || 1;
-  const barW = 64, gap = 28;
-  const groupW = barW * 2 + 6;
-  const startX = (W - groupW) / 2;
+  const barW = 64;
+  const startX = (W - (barW * 2 + 6)) / 2;
 
-  // gridlines (3 steps)
-  for (let i = 0; i <= 2; i++) {
-    const y = padTop + (plotH * i / 2);
-    svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: y, y2: y, class: 'gridline' }));
-  }
-  svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: padTop + plotH, y2: padTop + plotH, class: 'baseline' }));
-
-  const bars = [
-    { val: staticVal, color: 'var(--series-static)', label: 'Static', x: startX },
-    { val: forecastVal, color: 'var(--series-forecast)', label: 'Forecast-driven', x: startX + barW + 6 },
-  ];
-
-  bars.forEach((b) => {
-    const h = Math.max((b.val / maxVal) * plotH, 2);
-    const y = padTop + plotH - h;
-    const rect = el('rect', {
-      x: b.x, y: y, width: barW, height: h, rx: 6, ry: 6, fill: b.color, class: 'bar',
-    });
-    svg.appendChild(rect);
-    // square the bottom corners (rounded top only): overlay a small square patch
-    if (h > 8) {
-      svg.appendChild(el('rect', { x: b.x, y: y + h - 6, width: barW, height: 6, fill: b.color }));
+  if (!svg.__bars) {
+    for (let i = 0; i <= 2; i++) {
+      const y = padTop + (plotH * i / 2);
+      svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: y, y2: y, class: 'gridline' }));
     }
-    const label = el('text', {
-      x: b.x + barW / 2, y: y - 6, 'text-anchor': 'middle', class: 'value-label',
+    svg.appendChild(el('line', { x1: padSide, x2: W - padSide, y1: padTop + plotH, y2: padTop + plotH, class: 'baseline' }));
+    svg.__bars = [
+      { label: 'Static', color: 'var(--series-static)', x: startX },
+      { label: 'Forecast-driven', color: 'var(--series-forecast)', x: startX + barW + 6 },
+    ].map((b) => {
+      const rect = el('rect', { x: b.x, width: barW, rx: 6, ry: 6, fill: b.color, class: 'bar' });
+      const patch = el('rect', { x: b.x, width: barW, height: 6, fill: b.color, class: 'bar-patch' });
+      const value = el('text', { x: b.x + barW / 2, 'text-anchor': 'middle', class: 'value-label' });
+      const cat = el('text', { x: b.x + barW / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-label' });
+      cat.textContent = b.label === 'Static' ? 'Static' : 'Forecast';
+      svg.append(rect, patch, value, cat);
+      return { ...b, rect, patch, value };
     });
-    label.textContent = opts.format(b.val);
-    svg.appendChild(label);
+  }
 
-    const catLabel = el('text', {
-      x: b.x + barW / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-label',
-    });
-    catLabel.textContent = b.label === 'Static' ? 'Static' : 'Forecast';
-    svg.appendChild(catLabel);
-
-    rect.addEventListener('pointermove', (evt) => showTooltip(evt, `<strong>${b.label}:</strong> ${opts.format(b.val)}`));
-    rect.addEventListener('pointerleave', hideTooltip);
+  const vals = [staticVal, forecastVal];
+  svg.__bars.forEach((b, i) => {
+    const val = vals[i];
+    const h = Math.max((val / maxVal) * plotH, 2);
+    const y = padTop + plotH - h;
+    b.rect.setAttribute('y', y);
+    b.rect.setAttribute('height', h);
+    b.patch.setAttribute('y', padTop + plotH - 6);
+    b.patch.style.display = h > 8 ? '' : 'none';
+    b.value.setAttribute('y', y - 6);
+    b.value.textContent = opts.format(val);
+    b.rect.onpointermove = (evt) => showTooltip(evt, `<strong>${b.label}:</strong> ${opts.format(val)}`);
+    b.rect.onpointerleave = hideTooltip;
   });
 }
 
@@ -348,6 +386,27 @@ function renderLineChart(svg, days, actual, forecast) {
   svg.appendChild(actualPath);
   svg.appendChild(forecastPath);
 
+  // Draw-in on first view: the solid line draws itself, the dashed forecast
+  // fades in after (it already uses stroke-dasharray, so it can't draw-on).
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    const len = actualPath.getTotalLength();
+    actualPath.style.strokeDasharray = len;
+    actualPath.style.strokeDashoffset = len;
+    forecastPath.style.opacity = '0';
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting)) {
+        actualPath.style.transition = 'stroke-dashoffset 1.4s ease';
+        actualPath.style.strokeDashoffset = '0';
+        forecastPath.style.transition = 'opacity 0.6s ease 0.9s';
+        forecastPath.style.opacity = '1';
+        observer.disconnect();
+        // clear the dasharray after the draw so hover/crosshair isn't affected
+        setTimeout(() => { actualPath.style.strokeDasharray = ''; actualPath.style.strokeDashoffset = ''; }, 2500);
+      }
+    }, { threshold: 0.3 });
+    observer.observe(svg);
+  }
+
   // day-of-week axis ticks (every 5th day)
   days.forEach((d, i) => {
     if (i % 5 === 0) {
@@ -373,6 +432,54 @@ function renderLineChart(svg, days, actual, forecast) {
     showTooltip(evt, `Day ${days[idx]}<br><strong>Actual:</strong> ${actual[idx].toFixed(1)} &nbsp; <strong>Forecast:</strong> ${forecast[idx].toFixed(1)}`);
   });
   hit.addEventListener('pointerleave', () => { crosshair.style.opacity = '0'; hideTooltip(); });
+}
+
+// ---- stat pair (service level differences are illegible as zero-baseline bars) ----
+function renderStatPair(container, staticVal, forecastVal) {
+  container.textContent = '';
+  const rows = [
+    { who: 'Static', color: 'var(--series-static)', val: staticVal },
+    { who: 'Forecast-driven', color: 'var(--series-forecast)', val: forecastVal },
+  ];
+  rows.forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const who = document.createElement('span');
+    who.className = 'who';
+    const swatch = document.createElement('span');
+    swatch.className = 'swatch';
+    swatch.style.background = r.color;
+    who.appendChild(swatch);
+    who.appendChild(document.createTextNode(r.who));
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = fmtPct(r.val);
+    row.appendChild(who);
+    row.appendChild(num);
+    container.appendChild(row);
+  });
+  const note = document.createElement('div');
+  note.className = 'gap-note';
+  const ptsDiff = (forecastVal - staticVal) * 100;
+  note.textContent = `${ptsDiff >= 0 ? '+' : ''}${ptsDiff.toFixed(1)} percentage points with forecasting`;
+  container.appendChild(note);
+}
+
+// ---- data table for the forecast chart (values reachable without hovering) ----
+function renderForecastTable(tableEl, days, actual, forecast) {
+  tableEl.textContent = '';
+  const head = tableEl.insertRow();
+  ['Day', 'Actual', 'Forecast'].forEach((h) => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    head.appendChild(th);
+  });
+  days.forEach((d, i) => {
+    const row = tableEl.insertRow();
+    [d, actual[i].toFixed(1), forecast[i].toFixed(1)].forEach((v) => {
+      row.insertCell().textContent = v;
+    });
+  });
 }
 
 // ---- model comparison bars (winner highlighted, others muted) ----
@@ -420,6 +527,10 @@ function renderModelChart(svg, results, winner) {
 // ---- boot ----
 fetch('data.json').then(r => r.json()).then((data) => {
   const h = data.headline;
+  const cutPct = (1 - h.forecast.stockout_days / h.static.stockout_days) * 100;
+  const heroCostPct = ((h.forecast.total_cost - h.static.total_cost) / h.static.total_cost) * 100;
+  document.getElementById('hero-pct').textContent = Math.round(cutPct) + '%';
+  document.getElementById('hero-cost-pct').textContent = Math.round(heroCostPct) + '%';
   document.getElementById('hero-stockout').textContent = fmtDays(h.forecast.stockout_days);
   document.getElementById('hero-stockout-delta').textContent =
     `${fmtDays(h.forecast.stockout_days - h.static.stockout_days)} vs ${fmtDays(h.static.stockout_days)} static`;
@@ -431,7 +542,17 @@ fetch('data.json').then(r => r.json()).then((data) => {
   document.getElementById('hero-cost-delta').textContent = `+${costPct.toFixed(1)}% vs static`;
 
   renderLineChart(document.getElementById('chart-forecast'), data.forecast_vs_actual.days, data.forecast_vs_actual.actual, data.forecast_vs_actual.forecast);
+  renderForecastTable(document.getElementById('forecast-table'), data.forecast_vs_actual.days, data.forecast_vs_actual.actual, data.forecast_vs_actual.forecast);
   renderModelChart(document.getElementById('chart-models'), data.forecaster_comparison, data.winning_model);
+
+  if (data.methodology) {
+    const m = data.methodology;
+    document.getElementById('methodology-note').textContent =
+      `Every cell: ${m.horizon_days}-day horizon, ${m.replications} paired replications (same demand seeds for both policies), ` +
+      `forecast refreshed every ${m.review_period_days} days. The headline above is the ` +
+      `${data.headline.lead_time}-day lead time / ${data.headline.service_level_label} target cell of this grid. ` +
+      `Costs cover holding and ordering; stockout cost is out of scope — weigh the stockout reduction against your own.`;
+  }
 
   let selectedLeadTime = data.lead_times[0];
   let selectedService = data.service_levels[1] || data.service_levels[0];
@@ -446,7 +567,7 @@ fetch('data.json').then(r => r.json()).then((data) => {
     const row = currentScenario();
     if (!row) return;
     renderBarPair(document.getElementById('chart-stockout'), row.static.stockout_days, row.forecast.stockout_days, { format: fmtDays });
-    renderBarPair(document.getElementById('chart-service'), row.static.service_level, row.forecast.service_level, { format: fmtPct });
+    renderStatPair(document.getElementById('stat-service'), row.static.service_level, row.forecast.service_level);
     renderBarPair(document.getElementById('chart-cost'), row.static.total_cost, row.forecast.total_cost, { format: fmtInt });
   }
 

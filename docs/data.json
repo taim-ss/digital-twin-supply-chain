@@ -1,18 +1,22 @@
 {
+  "scenario": "baseline",
+  "methodology": {
+    "horizon_days": 365,
+    "replications": 10,
+    "review_period_days": 7
+  },
   "headline": {
     "lead_time": 3,
     "service_level_label": "95%",
-    "replications": 20,
-    "horizon_days": 365,
     "static": {
-      "service_level": 0.979,
-      "stockout_days": 7.5,
-      "total_cost": 35209
+      "service_level": 0.9792,
+      "stockout_days": 7.6,
+      "total_cost": 35233.0
     },
     "forecast": {
-      "service_level": 0.995,
-      "stockout_days": 1.8,
-      "total_cost": 41162
+      "service_level": 0.9959,
+      "stockout_days": 1.5,
+      "total_cost": 40973.0
     }
   },
   "forecaster_comparison": [
@@ -145,126 +149,126 @@
       "lead_time": 3,
       "service_level_label": "90%",
       "static": {
-        "service_level": 0.9833,
-        "stockout_days": 3,
-        "total_cost": 17373.0
+        "service_level": 0.9693,
+        "stockout_days": 11.2,
+        "total_cost": 34250.0
       },
       "forecast": {
-        "service_level": 0.9933,
-        "stockout_days": 1.2,
-        "total_cost": 19315.0
+        "service_level": 0.9937,
+        "stockout_days": 2.3,
+        "total_cost": 40060.0
       }
     },
     {
       "lead_time": 3,
       "service_level_label": "95%",
       "static": {
-        "service_level": 0.9889,
-        "stockout_days": 2,
-        "total_cost": 17870.0
+        "service_level": 0.9792,
+        "stockout_days": 7.6,
+        "total_cost": 35233.0
       },
       "forecast": {
-        "service_level": 0.9944,
-        "stockout_days": 1,
-        "total_cost": 19766.0
+        "service_level": 0.9959,
+        "stockout_days": 1.5,
+        "total_cost": 40973.0
       }
     },
     {
       "lead_time": 3,
       "service_level_label": "99%",
       "static": {
-        "service_level": 0.9922,
-        "stockout_days": 1.4,
-        "total_cost": 18783.0
+        "service_level": 0.991,
+        "stockout_days": 3.3,
+        "total_cost": 37002.0
       },
       "forecast": {
-        "service_level": 0.9956,
-        "stockout_days": 0.8,
-        "total_cost": 20597.0
+        "service_level": 0.9964,
+        "stockout_days": 1.3,
+        "total_cost": 42670.0
       }
     },
     {
       "lead_time": 5,
       "service_level_label": "90%",
       "static": {
-        "service_level": 0.9778,
-        "stockout_days": 4,
-        "total_cost": 16863.0
+        "service_level": 0.946,
+        "stockout_days": 19.7,
+        "total_cost": 32712.0
       },
       "forecast": {
-        "service_level": 0.99,
-        "stockout_days": 1.8,
-        "total_cost": 18864.0
+        "service_level": 0.9885,
+        "stockout_days": 4.2,
+        "total_cost": 39432.0
       }
     },
     {
       "lead_time": 5,
       "service_level_label": "95%",
       "static": {
-        "service_level": 0.9822,
-        "stockout_days": 3.2,
-        "total_cost": 17469.0
+        "service_level": 0.9597,
+        "stockout_days": 14.7,
+        "total_cost": 33797.0
       },
       "forecast": {
-        "service_level": 0.9922,
-        "stockout_days": 1.4,
-        "total_cost": 19411.0
+        "service_level": 0.9915,
+        "stockout_days": 3.1,
+        "total_cost": 40533.0
       }
     },
     {
       "lead_time": 5,
       "service_level_label": "99%",
       "static": {
-        "service_level": 0.9933,
-        "stockout_days": 1.2,
-        "total_cost": 18680.0
+        "service_level": 0.9789,
+        "stockout_days": 7.7,
+        "total_cost": 36069.0
       },
       "forecast": {
-        "service_level": 0.9944,
-        "stockout_days": 1,
-        "total_cost": 20515.0
+        "service_level": 0.9953,
+        "stockout_days": 1.7,
+        "total_cost": 42666.0
       }
     },
     {
       "lead_time": 7,
       "service_level_label": "90%",
       "static": {
-        "service_level": 0.9544,
-        "stockout_days": 8.2,
-        "total_cost": 16607.0
+        "service_level": 0.9222,
+        "stockout_days": 28.4,
+        "total_cost": 31640.0
       },
       "forecast": {
-        "service_level": 0.9944,
-        "stockout_days": 1,
-        "total_cost": 21056.0
+        "service_level": 0.9956,
+        "stockout_days": 1.6,
+        "total_cost": 44501.0
       }
     },
     {
       "lead_time": 7,
       "service_level_label": "95%",
       "static": {
-        "service_level": 0.9733,
-        "stockout_days": 4.8,
-        "total_cost": 17228.0
+        "service_level": 0.9373,
+        "stockout_days": 22.9,
+        "total_cost": 32692.0
       },
       "forecast": {
-        "service_level": 0.9944,
-        "stockout_days": 1,
-        "total_cost": 21764.0
+        "service_level": 0.9959,
+        "stockout_days": 1.5,
+        "total_cost": 45955.0
       }
     },
     {
       "lead_time": 7,
       "service_level_label": "99%",
       "static": {
-        "service_level": 0.99,
-        "stockout_days": 1.8,
-        "total_cost": 18540.0
+        "service_level": 0.9701,
+        "stockout_days": 10.9,
+        "total_cost": 35195.0
       },
       "forecast": {
-        "service_level": 0.9956,
+        "service_level": 0.9978,
         "stockout_days": 0.8,
-        "total_cost": 23087.0
+        "total_cost": 48655.0
       }
     }
   ],

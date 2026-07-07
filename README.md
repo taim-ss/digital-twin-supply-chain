@@ -2,17 +2,17 @@
 
 **[→ Live results dashboard](https://taim-ss.github.io/digital-twin-supply-chain/)** — explore the tradeoff across lead times and service levels interactively.
 
-A warehouse inventory policy tuned from historical averages, replaced by one driven by a live demand forecast. Run head to head on identical seasonal, trending demand for a full simulated year:
+A warehouse inventory policy tuned from historical averages, replaced by one driven by a live demand forecast. Run head to head on identical seasonal, trending demand for a full simulated year (10 paired replications):
 
 | | Static (historically-tuned) | Forecast-driven |
 |---|---|---|
-| Stockout days / year | 7.5 | **1.8** (−76%) |
-| Service level | 97.9% | **99.5%** |
-| Total cost / year | 35,209 | 41,162 (+16.9%) |
+| Stockout days / year | 7.6 | **1.5** (−80%) |
+| Service level | 97.9% | **99.6%** |
+| Total cost / year | 35,233 | 40,973 (+16.3%) |
 
 ![Policy comparison](docs/policy_comparison.png)
 
-Not "AI wins on every metric" — a real tradeoff, and the reason for it is the finding: the static policy is sized once from 180 days of history and never updates, so as real demand grows past that stale average, it quietly under-stocks. The forecast-driven policy re-forecasts every 7 days and holds more inventory to match *actual current* demand — trading 16.9% more holding cost for 76% fewer stockouts. Whether that trade is worth it depends on your real stockout cost, which this simulation doesn't model (only holding and ordering cost do) — explore how it shifts across lead times and service targets on the [live dashboard](https://taim-ss.github.io/digital-twin-supply-chain/).
+Not "AI wins on every metric" — a real tradeoff, and the reason for it is the finding: the static policy is sized once from 180 days of history and never updates, so as real demand grows past that stale average, it quietly under-stocks. The forecast-driven policy re-forecasts every 7 days and holds more inventory to match *actual current* demand — trading ~16% more holding cost for 80% fewer stockouts. At longer lead times the gap widens dramatically (23 vs 1.5 stockout days at a 7-day lead time). Whether the trade is worth it depends on your real stockout cost, which this simulation deliberately keeps out of scope — explore how it shifts across lead times and service targets on the [live dashboard](https://taim-ss.github.io/digital-twin-supply-chain/).
 
 ## The forecaster behind it
 
@@ -42,20 +42,22 @@ streamlit run streamlit_app.py
 ## Architecture
 
 ```
+scenarios/baseline.json  # The twin, defined declaratively (DTDL-style): demand, network, costs
 supply_chain_twin/
 ├── entities.py       # Node, Inventory, Shipment
 ├── demand.py          # DemandProcess: stationary (Phase 1) / seasonal+trend (Phase 2)
 ├── forecasting.py     # 4 forecasters + walk-forward backtest
 ├── policies.py        # ReorderPolicy: static (s,S) and forecast-driven
 ├── engine.py           # SimulationEngine, KPIs, replication runner
+├── scenario.py         # Loads scenario documents into runnable twins
 ├── run.py              # Phase 1 entry point
 └── run_phase2.py       # Phase 2 entry point: backtest -> policy -> comparison
 streamlit_app.py         # Live interactive control panel
 docs/index.html          # The live dashboard (static, GitHub Pages)
-tests/                   # 38 tests, all passing
+tests/                   # 41 tests, all passing
 ```
 
-`ReorderPolicy` and `DemandProcess` are both small protocols — the forecast-driven policy and the seasonal demand model plug into `SimulationEngine` without it knowing or caring which kind it's running. That's what let Phase 2 add a full forecasting pipeline without touching Phase 1's engine or breaking any of its tests.
+`ReorderPolicy` and `DemandProcess` are both small protocols — the forecast-driven policy and the seasonal demand model plug into `SimulationEngine` without it knowing or caring which kind it's running. That's what let Phase 2 add a full forecasting pipeline without touching Phase 1's engine or breaking any of its tests. The twin itself is described by a scenario document (`scenarios/baseline.json`) rather than hardcoded parameters — the dashboard exporter and any future consumer run the same twin by loading the same file.
 
 Modeling assumptions: single echelon (one warehouse, one unconstrained supplier), lost sales (unmet demand is lost, not backordered), and the lead-time convention that an order placed on day *t* with lead time *L* arrives at the start of day *t + L*.
 
@@ -63,4 +65,5 @@ Modeling assumptions: single echelon (one warehouse, one unconstrained supplier)
 
 - ~~**Phase 1** — simulation core.~~ Done.
 - ~~**Phase 2** — forecasting model driving the reorder policy.~~ Done.
+- ~~**Phase 4** — interactive control panel (shipped early: the live dashboard plus the Streamlit app).~~ Done.
 - **Phase 3** — a routing optimizer whose plan feeds back into the twin's state, closing the loop between forecast, simulation, and network decisions.

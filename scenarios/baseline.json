@@ -1,0 +1,24 @@
+{
+  "name": "baseline",
+  "description": "Single-echelon twin: one warehouse replenished by an unconstrained supplier, facing weekly-seasonal demand with a mild upward trend.",
+  "demand": {
+    "base_level": 40.0,
+    "trend_per_day": 0.03,
+    "noise_std": 3.0,
+    "weekday_multipliers": [1.1, 1.0, 0.95, 1.0, 1.15, 1.3, 0.9]
+  },
+  "history_days": 180,
+  "history_seed": 123,
+  "network": {
+    "supplier": { "name": "Supplier" },
+    "warehouse": { "name": "Central Warehouse", "lead_time_days": 3 }
+  },
+  "costs": {
+    "holding_cost_per_unit_day": 0.5,
+    "fixed_order_cost": 50.0
+  },
+  "policy_defaults": {
+    "cycle_days": 7,
+    "review_period_days": 7
+  }
+}
