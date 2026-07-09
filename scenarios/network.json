@@ -1,0 +1,33 @@
+{
+  "name": "network",
+  "description": "Phase 3 twin: two regional warehouses serving four retail stores. Southern demand roughly doubles over the year while the South warehouse's inbound capacity is fixed — the scenario that separates a routing optimizer from naive home-warehouse allocation.",
+  "history_days": 180,
+  "history_seed": 123,
+  "review_period_days": 7,
+  "supplier_lead_days": 3,
+  "warehouses": [
+    { "name": "North WH", "weekly_inbound_capacity": 650, "initial_days_of_stock": 10 },
+    { "name": "South WH", "weekly_inbound_capacity": 400, "initial_days_of_stock": 10 }
+  ],
+  "retails": [
+    { "name": "North-A", "home_warehouse": 0, "demand": { "base_level": 25.0, "trend_per_day": -0.01, "noise_std": 2.5 } },
+    { "name": "North-B", "home_warehouse": 0, "demand": { "base_level": 20.0, "trend_per_day": 0.0, "noise_std": 2.0 } },
+    { "name": "South-A", "home_warehouse": 1, "demand": { "base_level": 20.0, "trend_per_day": 0.06, "noise_std": 2.5 } },
+    { "name": "South-B", "home_warehouse": 1, "demand": { "base_level": 15.0, "trend_per_day": 0.05, "noise_std": 2.0 } }
+  ],
+  "lanes": {
+    "cost_per_unit": [
+      [0.5, 0.5, 2.0, 2.0],
+      [2.0, 2.0, 0.5, 0.5]
+    ],
+    "lead_days": [
+      [1, 1, 2, 2],
+      [2, 2, 1, 1]
+    ]
+  },
+  "costs": {
+    "holding_cost_per_unit_day": 0.5,
+    "fixed_order_cost": 75.0,
+    "shortage_penalty_per_unit": 10.0
+  }
+}

@@ -248,6 +248,56 @@
     </div>
   </section>
 
+  <section id="routing-section">
+    <h2>Phase 3 — routing the network</h2>
+    <p class="section-lede">
+      The twin grows into a network: two regional warehouses, four retail stores, and a squeeze —
+      southern demand outgrows the South warehouse's fixed inbound capacity over the year. Same demand,
+      same replenishment, same information; the only difference is how warehouse stock gets routed.
+      A min-cost transportation LP re-routes ~8,000 units/year of northern slack southward and its plan
+      feeds back into the twin's state — closing the forecast → optimize → simulate loop.
+    </p>
+    <div class="legend">
+      <span class="key"><span class="swatch" style="background:var(--series-static)"></span>Nearest-warehouse (naive)</span>
+      <span class="key"><span class="swatch" style="background:var(--series-forecast)"></span>Transportation LP</span>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-card"><div class="chart-title">Fill rate</div>
+        <div class="stat-pair">
+          <div class="row"><span class="who"><span class="swatch" style="background:var(--series-static)"></span>Nearest-warehouse</span><span class="num">82.8%</span></div>
+          <div class="row"><span class="who"><span class="swatch" style="background:var(--series-forecast)"></span>Transportation LP</span><span class="num">100.0%</span></div>
+          <div class="gap-note">The naive rule serves every store only from its home warehouse — the South starves while the North sits on surplus.</div>
+        </div>
+      </div>
+      <div class="chart-card"><div class="chart-title">Cumulative stockout days</div>
+        <div class="chart-wrap"><svg id="chart-routing" viewBox="0 0 300 200" role="img" aria-label="Cumulative stockout days over one year: nearest-warehouse allocation climbs to 185, the transportation LP stays at zero">
+          <line x1="34" y1="176" x2="292" y2="176" stroke="var(--gridline)" stroke-width="1"/>
+          <line x1="34" y1="95" x2="292" y2="95" stroke="var(--gridline)" stroke-width="1"/>
+          <line x1="34" y1="14" x2="292" y2="14" stroke="var(--gridline)" stroke-width="1"/>
+          <text class="axis-label" x="28" y="179" text-anchor="end">0</text>
+          <text class="axis-label" x="28" y="98" text-anchor="end">100</text>
+          <text class="axis-label" x="28" y="17" text-anchor="end">200</text>
+          <text class="axis-label" x="34" y="192">day 0</text>
+          <text class="axis-label" x="292" y="192" text-anchor="end">day 365</text>
+          <polyline fill="none" stroke="var(--series-static)" stroke-width="1.8" points="34,176.0 39,176.0 44,176.0 49,176.0 54,176.0 59,176.0 64,176.0 69,176.0 74,176.0 79,176.0 84,175.2 89,173.6 94,171.9 98,169.5 103,167.1 108,164.7 113,162.2 118,160.6 123,158.2 128,155.8 133,153.3 138,150.1 143,147.7 148,144.4 153,141.2 158,137.9 163,135.5 168,132.3 173,128.2 178,124.2 183,119.3 188,116.1 193,112.8 198,109.6 203,105.5 208,102.3 213,98.2 218,94.2 223,90.1 228,85.3 232,81.2 237,77.2 242,72.3 247,68.3 252,62.6 257,58.5 262,53.7 267,48.8 272,44.8 277,40.7 282,35.9 287,31.0 292,26.2"/>
+          <polyline fill="none" stroke="var(--series-forecast)" stroke-width="1.8" points="34,176.0 292,176.0"/>
+        </svg></div>
+      </div>
+      <div class="chart-card"><div class="chart-title">Total cost / year</div>
+        <div class="stat-pair">
+          <div class="row"><span class="who"><span class="swatch" style="background:var(--series-static)"></span>Nearest-warehouse</span><span class="num">330,741</span></div>
+          <div class="row"><span class="who"><span class="swatch" style="background:var(--series-forecast)"></span>Transportation LP</span><span class="num">359,394</span></div>
+          <div class="gap-note">+8.7% total — cross-region lanes cost 4× the home lane, so eliminating stockouts nearly doubles transport spend.</div>
+        </div>
+      </div>
+    </div>
+    <p class="methodology">
+      10 paired replications, 365-day horizon, identical seeds per pair. The LP (scipy HiGHS) minimizes
+      transport cost plus a shortage penalty over every warehouse–retail lane; it reaches zero stockout
+      days on every seed. Scenario: <code>scenarios/network.json</code>.
+    </p>
+  </section>
+
   <section id="architecture">
     <h2>What's actually running</h2>
     <div class="chart-card" style="margin-bottom:16px">
@@ -277,7 +327,7 @@
       </svg>
     </div>
     <div class="architecture-note">
-      Every number on this page comes from a verified discrete-event simulation engine — 41 passing tests,
+      Every number on this page comes from a verified discrete-event simulation engine — 53 passing tests,
       paired-seed replications, walk-forward-validated forecasts. Nothing is mocked, and this page itself is
       pure static HTML with zero dependencies. The full engine, including a control panel that runs arbitrary
       scenarios live, is in <a href="https://github.com/taim-ss/digital-twin-supply-chain">the repository</a>.
